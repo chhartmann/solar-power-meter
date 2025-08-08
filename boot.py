@@ -7,9 +7,6 @@ from umqtt.simple import MQTTClient
 import gc
 import network
 
-# TODO
-# - check if hostname config is working
-
 # Configuration file
 CONFIG_FILE = 'config.json'
 TOPIC_SOLAR_METER = "tele/balkonkraftwerk/SENSOR"
@@ -125,14 +122,17 @@ class SolarPowerMeter:
 
             if self.wlan is None:
                 self.wlan = network.WLAN(network.STA_IF)
+                # Set hostname BEFORE activating interface
                 if hostname:
                     try:
                         self.wlan.config(hostname=hostname)
+                        print(f"WiFi hostname set to: {hostname}")
                     except Exception as e:
                         print(f"Failed to set WiFi hostname: {e}")
-
-            if not self.wlan.active():
                 self.wlan.active(True)
+            else:
+                if not self.wlan.active():
+                    self.wlan.active(True)
 
             if not self.wlan.isconnected():
                 print(f"Connecting to WiFi SSID '{ssid}'...")
