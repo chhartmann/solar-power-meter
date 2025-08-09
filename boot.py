@@ -171,12 +171,6 @@ class SolarPowerMeter:
         except Exception as e:
             print(f"Error processing MQTT message: {e}")
     
-    def clear_leds(self):
-        """Clear all LEDs"""
-        for i in range(self.config['neopixel']['num_leds']):
-            self.np[i] = (0, 0, 0)
-        self.np.write()
-
     def _apply_brightness(self, color_rgb_tuple):
         """Scale a (r,g,b) tuple by brightness (0-100)."""
         factor = max(0, min(1, self.brightness / 100))
@@ -194,26 +188,7 @@ class SolarPowerMeter:
         for i in range(1, self.config['neopixel']['num_leds']):
             self.np[i] = (0, 0, 0)
         self.np.write()
-    
-    def calculate_percentages(self):
-        """Calculate the required percentages"""
-
-        percent_generated = (self.solar_power / 600) * 100
-
-        if self.power_usage > 0:
-            percent_available = 0
-        else:
-            percent_available = (abs(self.power_usage) / 600) * 100
         
-        percent_used = percent_generated - percent_available
-        
-        # Clamp values to 0-100
-        percent_generated = max(0, min(100, percent_generated))
-        percent_available = max(0, min(100, percent_available))
-        percent_used = max(0, min(100, percent_used))
-
-        return percent_generated, percent_available, percent_used
-    
     def update_led_display(self):
         """Update the LED display based on current values"""
         current_time = time.time()
@@ -233,25 +208,22 @@ class SolarPowerMeter:
         if (current_time - self.last_mqtt_time) > self.mqtt_timeout:
             self._blink_first_led((255, 0, 0))
             return
-        
-        # Calculate percentages
-        percent_generated, percent_available, percent_used = self.calculate_percentages()
 
-        # Calculate LED positions (10 LEDs = 100%)
-        used_leds = round(percent_used / 100 * self.config['neopixel']['num_leds'])
-        available_leds = round(percent_available / 100 * self.config['neopixel']['num_leds'])
+        available_leds = self.np.n
+        leds_power_generatated = round(min(self.solar_power, 600) / 600 * available_leds)
+        leds_power_available = 0
+        if (self.power_usage < 0):
+            leds_power_available = abs(round(min(self.power_usage,600) / 600 * available_leds))
 
-        # Display used power in red (starting from first LED)
-        for i in range(min(used_leds, self.config['neopixel']['num_leds'])):
-            self.np[i] = (int(255 * self.brightness / 100), 0, 0)
-        
-        # Display available power in green (after used LEDs)
-        start_green = used_leds
-        for i in range(start_green, min(start_green + available_leds, self.config['neopixel']['num_leds'])):
-            self.np[i] = (0, int(255 * self.brightness / 100), 0)
+        leds_power_consumption = leds_power_generatated - leds_power_available
 
-        for i in range(start_green + available_leds, self.config['neopixel']['num_leds']):
-            self.np[i] = (0, 0, 0)  # Clear remaining LEDs
+        for i in range(available_leds):
+            if i < leds_power_consumption:
+                self.np[i] = (int(255 * self.brightness / 100), 0, 0)
+            elif i < (leds_power_consumption + leds_power_available):
+                self.np[i] = (0, int(255 * self.brightness / 100), 0)
+            else:
+                self.np[i] = (0, 0, 0)  # Clear remaining LEDs        
         
         self.np.write()
     
