@@ -180,9 +180,9 @@ class SolarPowerMeter:
         except Exception as e:
             print(f"Error processing MQTT message: {e}")
     
-    def _apply_brightness(self, color_rgb_tuple):
+    def _apply_brightness(self, color_rgb_tuple, brightness_factor=1.0):
         """Scale a (r,g,b) tuple by brightness (0-100)."""
-        factor = max(0, min(1, self.brightness / 100))
+        factor = max(0, min(1, self.brightness / 100.0 * brightness_factor))
         r, g, b = color_rgb_tuple
         return (int(r * factor), int(g * factor), int(b * factor))
 
@@ -223,23 +223,23 @@ class SolarPowerMeter:
             available_leds = self.np.n
             temp = self.hot_water_temp
             num_leds = min(available_leds, max(1, temp // 10))
+            color = (0, 0, 0)
+            if temp < 30:
+                color = (0, 0, 255)  # Blue
+            elif temp > 50:
+                color = (255, 0, 0)  # Red
+            else:
+                # Interpolate between blue and red
+                t = (temp - 30) / 20.0
+                r = int(255 * t)
+                g = 0
+                b = int(255 * (1 - t))
+                color = (r, g, b)
+
             for i in range(available_leds):
-                if i < num_leds:
-                    # Color calculation
-                    if temp < 30:
-                        color = (0, 0, 255)  # Blue
-                    elif temp > 50:
-                        color = (255, 0, 0)  # Red
-                    else:
-                        # Interpolate between blue and red
-                        t = (temp - 30) / 20.0
-                        r = int(255 * t)
-                        g = 0
-                        b = int(255 * (1 - t))
-                        color = (r, g, b)
-                    self.np[i] = self._apply_brightness(color)
-                else:
-                    self.np[i] = (0, 0, 0)
+                brightness_factor = min(max(temp - i * 10.0, 0.0) / 10.0, 1.0)
+                self.np[i] = self._apply_brightness(color, brightness_factor)
+                
             self.np.write()
             return
 
@@ -308,6 +308,7 @@ class SolarPowerMeter:
                     gc.collect()
                     
             except Exception as e:
+                print(f"Error in main loop: {e}")
                 time.sleep(1)
 
 # Create and run the application
