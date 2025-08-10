@@ -2,6 +2,8 @@
 
 A MicroPython-based solar power and energy usage monitor using NeoPixel LEDs and MQTT.
 
+![Solar Power Meter](wo_housing.jpg)
+
 ## Features
 - Displays solar power and power usage on LED strip
 - Connects to WiFi and MQTT broker

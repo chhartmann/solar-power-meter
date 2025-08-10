@@ -11,6 +11,7 @@ import network
 CONFIG_FILE = 'config.json'
 TOPIC_SOLAR_METER = "tele/balkonkraftwerk/SENSOR"
 TOPIC_POWER_METER = "tele/heizung/RESULT"
+TOPIC_HOT_WATER = "tele/solarthermie/RESULT"
 
 class SolarPowerMeter:
     def __init__(self):
@@ -37,6 +38,7 @@ class SolarPowerMeter:
         # MQTT data
         self.solar_power = 0
         self.power_usage = 0
+        self.hot_water_temp = 0
         self.last_mqtt_time = time.time()
         self.mqtt_timeout = 60  # 1 minute timeout
 
@@ -165,6 +167,9 @@ class SolarPowerMeter:
             elif topic_str == TOPIC_POWER_METER:
                 self.power_usage = int(value["1-0:16.7.0*255"]["value"])
                 print(f"Received power usage: {self.power_usage} W")
+            elif topib_str == TOPIC_HOT_WATER:
+                self.hot_water_temp = int(value["temperature"]["value"])
+                print(f"Received hot water temperature: {self.hot_water_temp} °C")
             
             self.last_mqtt_time = time.time()
             
