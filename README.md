@@ -6,6 +6,7 @@ A MicroPython-based solar power and energy usage monitor using NeoPixel LEDs and
 
 ## Features
 - Displays solar power and power usage on LED strip
+- Displays water temperature on button press
 - Connects to WiFi and MQTT broker
 - Configurable via `config.json`
 

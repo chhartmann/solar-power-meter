@@ -11,7 +11,7 @@ import network
 CONFIG_FILE = 'config.json'
 TOPIC_SOLAR_METER = "tele/balkonkraftwerk/SENSOR"
 TOPIC_POWER_METER = "tele/heizung/RESULT"
-TOPIC_HOT_WATER = "tele/solarthermie/RESULT"
+TOPIC_HOT_WATER = "tele/heizung/Wassertemperatur"
 
 class SolarPowerMeter:
     def __init__(self):
@@ -23,7 +23,6 @@ class SolarPowerMeter:
         )
         self.brightness = self.config['neopixel']['brightness']
 
-        self.clear_leds()
         self.np[0] = self._apply_brightness((255, 255, 255))  # White - power on
         self.np.write()
 
@@ -46,6 +45,10 @@ class SolarPowerMeter:
         self.client = None
         self.mqtt_connected = False
 
+        # Boot button (default pin 0 if not in config)
+        boot_btn_pin = self.config.get('boot_button', {}).get('pin', 9)
+        self.boot_button = Pin(boot_btn_pin, Pin.IN, Pin.PULL_UP)
+
         # Stage 3: WiFi connection
         self.setup_wifi()
         if self.wifi_connected:
@@ -59,7 +62,6 @@ class SolarPowerMeter:
                 self.np[3] = self._apply_brightness((0, 0, 255))  # Blue - MQTT connected
                 self.np.write()
                 time.sleep(0.5)
-                self.clear_leds()
 
     
     def load_config(self):
@@ -102,6 +104,7 @@ class SolarPowerMeter:
             # Subscribe to topics
             self.client.subscribe(TOPIC_SOLAR_METER)
             self.client.subscribe(TOPIC_POWER_METER)
+            self.client.subscribe(TOPIC_HOT_WATER)
             print("Subscribed to MQTT topics")
             
         except Exception as e:
@@ -159,16 +162,17 @@ class SolarPowerMeter:
         """Callback for MQTT messages"""
         try:
             topic_str = topic.decode('utf-8')
-            value = json.loads(msg.decode('utf-8'))
 
             if topic_str == TOPIC_SOLAR_METER:
+                value = json.loads(msg.decode('utf-8'))
                 self.solar_power = int(value["ENERGY"]["Power"])
                 print(f"Received solar power: {self.solar_power} W")
             elif topic_str == TOPIC_POWER_METER:
+                value = json.loads(msg.decode('utf-8'))
                 self.power_usage = int(value["1-0:16.7.0*255"]["value"])
                 print(f"Received power usage: {self.power_usage} W")
-            elif topib_str == TOPIC_HOT_WATER:
-                self.hot_water_temp = int(value["temperature"]["value"])
+            elif topic_str == TOPIC_HOT_WATER:
+                self.hot_water_temp = float(msg.decode('utf-8'))
                 print(f"Received hot water temperature: {self.hot_water_temp} °C")
             
             self.last_mqtt_time = time.time()
@@ -197,7 +201,7 @@ class SolarPowerMeter:
     def update_led_display(self):
         """Update the LED display based on current values"""
         current_time = time.time()
-        
+
         # Priority of error indication:
         # 1) WiFi not connected -> blink green
         if not self.wifi_connected:
@@ -214,6 +218,32 @@ class SolarPowerMeter:
             self._blink_first_led((255, 0, 0))
             return
 
+        # If boot button is pressed, show hot water status
+        if self.boot_button.value() == 0:  # Button pressed (assuming active low)
+            available_leds = self.np.n
+            temp = self.hot_water_temp
+            num_leds = min(available_leds, max(1, temp // 10))
+            for i in range(available_leds):
+                if i < num_leds:
+                    # Color calculation
+                    if temp < 30:
+                        color = (0, 0, 255)  # Blue
+                    elif temp > 50:
+                        color = (255, 0, 0)  # Red
+                    else:
+                        # Interpolate between blue and red
+                        t = (temp - 30) / 20.0
+                        r = int(255 * t)
+                        g = 0
+                        b = int(255 * (1 - t))
+                        color = (r, g, b)
+                    self.np[i] = self._apply_brightness(color)
+                else:
+                    self.np[i] = (0, 0, 0)
+            self.np.write()
+            return
+
+        # Default: show power status
         available_leds = self.np.n
         leds_power_generatated = round(min(self.solar_power, 600) / 600 * available_leds)
         leds_power_available = 0
@@ -229,7 +259,6 @@ class SolarPowerMeter:
                 self.np[i] = (0, int(255 * self.brightness / 100), 0)
             else:
                 self.np[i] = (0, 0, 0)  # Clear remaining LEDs        
-        
         self.np.write()
     
     def run(self):
