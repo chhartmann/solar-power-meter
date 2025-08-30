@@ -4,6 +4,11 @@ A MicroPython-based solar power and energy usage monitor using NeoPixel LEDs and
 
 ![Solar Power Meter](wo_housing.jpg)
 
+Housing generated with https://github.com/mrWheel/YAPP_Box
+
+![With Housing](with_housing.jpg)
+
+
 ## Features
 - Displays solar power and power usage on LED strip
 - Displays water temperature on button press
